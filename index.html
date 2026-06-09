@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sales & Revenue Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f6fa;
+      --surface: #ffffff;
+      --border: #e2e5ed;
+      --text-primary: #1a1d23;
+      --text-secondary: #6b7280;
+      --accent: #3b82f6;
+      --accent-light: #eff6ff;
+      --green: #22c55e;
+      --green-light: #f0fdf4;
+      --red: #ef4444;
+      --red-light: #fef2f2;
+      --amber: #f59e0b;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--accent); display: flex; align-items: center; justify-content: center;
+    }
+    .logo-icon svg { width: 18px; height: 18px; fill: white; }
+    .logo-text { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface);
+      color: var(--text-primary); transition: all 0.15s;
+    }
+    .btn:hover { background: var(--bg); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+    .btn svg { width: 15px; height: 15px; }
+
+    /* ── Layout ── */
+    main { max-width: 1280px; margin: 0 auto; padding: 1.5rem 2rem 3rem; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px; margin-bottom: 1.5rem;
+    }
+    .toolbar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .page-title { font-size: 20px; font-weight: 600; margin-right: 8px; }
+    select, .slicer-btn {
+      font-size: 13px; padding: 7px 12px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-primary);
+      cursor: pointer; outline: none;
+    }
+    select:focus { border-color: var(--accent); }
+    .slicer-group { display: flex; gap: 4px; flex-wrap: wrap; }
+    .slicer-btn {
+      font-size: 12px; padding: 5px 11px;
+      background: var(--surface); cursor: pointer; transition: all 0.15s;
+    }
+    .slicer-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+    .slicer-btn:hover:not(.active) { background: var(--bg); }
+
+    /* ── KPI Grid ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px; margin-bottom: 1.5rem;
+    }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.2rem 1.4rem;
+      transition: box-shadow 0.15s;
+    }
+    .kpi-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.07); }
+    .kpi-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .kpi-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .kpi-icon svg { width: 16px; height: 16px; }
+    .kpi-value { font-size: 26px; font-weight: 700; color: var(--text-primary); line-height: 1; margin-bottom: 8px; }
+    .kpi-delta { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; }
+    .delta-up { color: var(--green); }
+    .delta-dn { color: var(--red); }
+    .delta-tag {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 600;
+    }
+    .delta-tag.up { background: var(--green-light); color: #15803d; }
+    .delta-tag.dn { background: var(--red-light); color: #b91c1c; }
+
+    /* ── Charts row ── */
+    .charts-grid {
+      display: grid; grid-template-columns: 1.5fr 1fr;
+      gap: 14px; margin-bottom: 1.5rem;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 1.2rem 1.4rem;
+    }
+    .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .card-subtitle { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+    .chart-wrap { position: relative; }
+
+    /* ── Bottom row ── */
+    .bottom-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; font-size: 11px; font-weight: 600;
+      color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 0 0 10px; border-bottom: 1px solid var(--border);
+    }
+    tbody td { padding: 10px 0; border-bottom: 1px solid var(--border); color: var(--text-primary); }
+    tbody tr:last-child td { border-bottom: none; }
+    .rank { font-size: 11px; color: var(--text-secondary); font-weight: 600; width: 20px; }
+    .prod-name { font-weight: 500; }
+    .prod-cat { font-size: 11px; color: var(--text-secondary); }
+    .bar-bg { background: #f1f5f9; border-radius: 4px; height: 6px; margin-top: 4px; }
+    .bar-fill { height: 6px; border-radius: 4px; background: var(--accent); }
+
+    /* ── Upload zone ── */
+    .upload-area {
+      border: 2px dashed var(--border); border-radius: var(--radius);
+      padding: 2rem 1.5rem; text-align: center; cursor: pointer;
+      transition: all 0.2s; margin-bottom: 1rem;
+    }
+    .upload-area:hover, .upload-area.drag-over { border-color: var(--accent); background: var(--accent-light); }
+    .upload-icon { font-size: 36px; margin-bottom: 8px; }
+    .upload-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .upload-sub { font-size: 12px; color: var(--text-secondary); }
+    #fileInput { display: none; }
+    .import-status {
+      font-size: 12px; padding: 8px 12px; border-radius: var(--radius-sm);
+      margin-top: 8px; display: none;
+    }
+    .import-status.success { background: var(--green-light); color: #15803d; display: block; }
+    .import-status.error { background: var(--red-light); color: #b91c1c; display: block; }
+
+    /* ── Data preview ── */
+    .data-preview { overflow-x: auto; max-height: 180px; overflow-y: auto; }
+    .data-preview table { min-width: 400px; }
+    .data-preview thead th { background: var(--bg); position: sticky; top: 0; }
+    .data-preview td { white-space: nowrap; font-size: 12px; }
+
+    /* ── Footer ── */
+    .dash-footer {
+      margin-top: 2rem; padding-top: 1.2rem; border-top: 1px solid var(--border);
+      font-size: 12px; color: var(--text-secondary); text-align: center;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      main { padding: 1rem; }
+      .charts-grid, .bottom-grid { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+      header { padding: 0 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M3 3h18v4H3zm0 6h12v4H3zm0 6h18v4H3z"/></svg>
+    </div>
+    <span class="logo-text">SalesIQ Dashboard</span>
+  </div>
+  <div class="header-right">
+    <span id="lastUpdated" style="font-size:12px;color:var(--text-secondary);"></span>
+    <button class="btn" onclick="exportCSV()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      Export
+    </button>
+  </div>
+</header>
+
+<!-- ── Main ── -->
+<main>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <span class="page-title">Sales Analytics</span>
+      <select id="yearSel" onchange="applyFilters()">
+        <option value="2024">2024</option>
+        <option value="2023">2023</option>
+      </select>
+      <select id="periodSel" onchange="applyFilters()">
+        <option value="all">All quarters</option>
+        <option value="q1">Q1 (Jan–Mar)</option>
+        <option value="q2">Q2 (Apr–Jun)</option>
+        <option value="q3">Q3 (Jul–Sep)</option>
+        <option value="q4">Q4 (Oct–Dec)</option>
+      </select>
+    </div>
+    <div>
+      <span style="font-size:12px;color:var(--text-secondary);margin-right:8px;">Category:</span>
+      <div class="slicer-group" id="catSlicers">
+        <button class="slicer-btn active" data-cat="all" onclick="setCat(this)">All</button>
+        <button class="slicer-btn" data-cat="electronics" onclick="setCat(this)">Electronics</button>
+        <button class="slicer-btn" data-cat="apparel" onclick="setCat(this)">Apparel</button>
+        <button class="slicer-btn" data-cat="home" onclick="setCat(this)">Home & Garden</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid" id="kpiGrid"></div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Revenue trend</div>
+          <div class="card-subtitle">Monthly comparison — this year vs last year</div>
+        </div>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-dot" style="background:#3b82f6;"></span>2024</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#bfdbfe;border:1px dashed #3b82f6;"></span>2023</span>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:240px;"><canvas id="revChart" role="img" aria-label="Monthly revenue trend bar chart comparing 2024 to 2023">Monthly revenue comparison.</canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Sales by category</div>
+          <div class="card-subtitle">Revenue share breakdown</div>
+        </div>
+      </div>
+      <div id="catLegend" class="legend" style="margin-bottom:10px;"></div>
+      <div class="chart-wrap" style="height:200px;"><canvas id="catChart" role="img" aria-label="Donut chart of sales by category">Category breakdown.</canvas></div>
+    </div>
+  </div>
+
+  <!-- Bottom row -->
+  <div class="bottom-grid">
+    <!-- Top products table -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Top products</div>
+          <div class="card-subtitle">Ranked by revenue</div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Product</th><th style="text-align:right">Revenue</th><th style="text-align:right">Share</th></tr></thead>
+        <tbody id="prodBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Import panel -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Import your data</div>
+        <div class="card-subtitle">CSV, Excel, or JSON</div>
+      </div>
+      <div class="upload-area" id="dropZone"
+        onclick="document.getElementById('fileInput').click()"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')"
+        ondrop="handleDrop(event)">
+        <div class="upload-icon">📂</div>
+        <div class="upload-title">Drop your file here</div>
+        <div class="upload-sub">Supports .csv · .xlsx · .xls · .json</div>
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.json" onchange="handleFile(event)" />
+      </div>
+      <div id="importStatus" class="import-status"></div>
+      <div id="dataPreview" class="data-preview" style="display:none;margin-top:10px;"></div>
+      <div style="margin-top:12px;font-size:12px;color:var(--text-secondary);">
+        📋 <strong>Expected columns:</strong> Date, Product, Category, Revenue, Units
+      </div>
+    </div>
+  </div>
+
+  <div class="dash-footer" id="dashFooter"></div>
+</main>
+
+<script>
+// ── Sample data ──────────────────────────────────────────────
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const Q_MAP = { q1:[0,1,2], q2:[3,4,5], q3:[6,7,8], q4:[9,10,11] };
+const CAT_COLORS = { electronics:'#3b82f6', apparel:'#22c55e', home:'#f59e0b' };
+
+const DATASET = {
+  '2024': {
+    monthly: [480,510,430,560,590,620,680,710,760,800,850,920],
+    prev:    [390,420,380,460,480,510,550,570,620,650,700,760],
+    cat: { electronics:42, apparel:31, home:27 },
+    products: [
+      { name:'Pro X Headphones', cat:'Electronics', rev:412000, pct:95 },
+      { name:'Canvas Backpack',  cat:'Apparel',     rev:289000, pct:67 },
+      { name:'Smart Desk Lamp',  cat:'Home',        rev:234000, pct:54 },
+      { name:'Wireless Charger', cat:'Electronics', rev:201000, pct:46 },
+      { name:'Linen Tote Bag',   cat:'Apparel',     rev:178000, pct:41 },
+    ],
+    kpis: [
+      { label:'Total revenue', value:'$2.84M', delta:'+18%', up:true, icon:'💰', color:'#eff6ff' },
+      { label:'Total orders',  value:'14,320', delta:'+12%', up:true, icon:'📦', color:'#f0fdf4' },
+      { label:'Avg order value',value:'$198',  delta:'+5%',  up:true, icon:'🛒', color:'#fffbeb' },
+      { label:'Return rate',   value:'3.2%',   delta:'-0.4%',up:true, icon:'↩️', color:'#fef2f2' },
+    ]
+  },
+  '2023': {
+    monthly: [390,420,380,460,480,510,550,570,620,650,700,760],
+    prev:    [310,340,300,370,390,420,450,470,510,530,570,620],
+    cat: { electronics:38, apparel:34, home:28 },
+    products: [
+      { name:'Canvas Backpack',  cat:'Apparel',     rev:310000, pct:95 },
+      { name:'Pro X Headphones', cat:'Electronics', rev:280000, pct:86 },
+      { name:'Smart Desk Lamp',  cat:'Home',        rev:195000, pct:60 },
+      { name:'Wireless Charger', cat:'Electronics', rev:171000, pct:52 },
+      { name:'Wool Scarf',       cat:'Apparel',     rev:142000, pct:43 },
+    ],
+    kpis: [
+      { label:'Total revenue', value:'$2.41M', delta:'+14%', up:true, icon:'💰', color:'#eff6ff' },
+      { label:'Total orders',  value:'12,780', delta:'+9%',  up:true, icon:'📦', color:'#f0fdf4' },
+      { label:'Avg order value',value:'$189',  delta:'+3%',  up:true, icon:'🛒', color:'#fffbeb' },
+      { label:'Return rate',   value:'3.6%',   delta:'+0.2%',up:false,icon:'↩️', color:'#fef2f2' },
+    ]
+  }
+};
+
+let activeCat = 'all';
+let revChart, catChart;
+
+function fmt(n) { return '$' + (n>=1000000 ? (n/1000000).toFixed(2)+'M' : n>=1000 ? (n/1000).toFixed(0)+'K' : n); }
+
+function getActiveData() {
+  const year = document.getElementById('yearSel').value;
+  const period = document.getElementById('periodSel').value;
+  const d = DATASET[year];
+  if (period === 'all') return d;
+  const idxs = Q_MAP[period];
+  return {
+    ...d,
+    monthly: d.monthly.map((v,i) => idxs.includes(i) ? v : 0),
+    prev:    d.prev.map((v,i)    => idxs.includes(i) ? v : 0),
+  };
+}
+
+function renderKPIs() {
+  const d = getActiveData();
+  document.getElementById('kpiGrid').innerHTML = d.kpis.map(k => `
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <span class="kpi-label">${k.label}</span>
+        <div class="kpi-icon" style="background:${k.color};">${k.icon}</div>
+      </div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-delta">
+        <span class="delta-tag ${k.up?'up':'dn'}">${k.delta}</span>
+        <span style="color:var(--text-secondary);">vs last year</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderRevChart() {
+  const d = getActiveData();
+  const ctx = document.getElementById('revChart').getContext('2d');
+  if (revChart) revChart.destroy();
+  revChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: MONTHS,
+      datasets: [
+        { label: 'This year', data: d.monthly, backgroundColor: '#3b82f6', borderRadius: 4, borderSkipped: false },
+        { label: 'Last year', data: d.prev,    backgroundColor: '#bfdbfe', borderRadius: 4, borderSkipped: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' $' + c.parsed.y + 'K' } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#9ca3af' } },
+        y: { grid: { color: '#f1f5f9' }, ticks: { callback: v => '$' + v + 'K', font: { size: 11 }, color: '#9ca3af' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderCatChart() {
+  const d = getActiveData();
+  const cats = Object.keys(d.cat);
+  const vals = Object.values(d.cat);
+  const colors = cats.map(c => CAT_COLORS[c] || '#94a3b8');
+  const ctx = document.getElementById('catChart').getContext('2d');
+  if (catChart) catChart.destroy();
+  catChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: cats.map(c => c.charAt(0).toUpperCase()+c.slice(1)), datasets: [{ data: vals, backgroundColor: colors, borderWidth: 3, borderColor: '#fff' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ' ' + c.parsed + '%' } } }
+    }
+  });
+  document.getElementById('catLegend').innerHTML = cats.map((c,i) => `
+    <span class="legend-item">
+      <span class="legend-dot" style="background:${colors[i]};"></span>
+      ${c.charAt(0).toUpperCase()+c.slice(1)} <strong>${vals[i]}%</strong>
+    </span>`).join('');
+}
+
+function renderTable() {
+  const d = getActiveData();
+  let prods = d.products;
+  if (activeCat !== 'all') prods = prods.filter(p => p.cat.toLowerCase() === activeCat);
+  document.getElementById('prodBody').innerHTML = prods.map((p,i) => `
+    <tr>
+      <td class="rank">${i+1}</td>
+      <td><div class="prod-name">${p.name}</div><div class="prod-cat">${p.cat}</div></td>
+      <td style="text-align:right;font-weight:600;">${fmt(p.rev)}</td>
+      <td style="text-align:right;min-width:90px;">
+        <span style="font-size:11px;color:var(--text-secondary);">${p.pct}%</span>
+        <div class="bar-bg"><div class="bar-fill" style="width:${p.pct}%;background:${CAT_COLORS[p.cat.toLowerCase()]||'#3b82f6'};"></div></div>
+      </td>
+    </tr>`).join('');
+}
+
+function setCat(btn) {
+  document.querySelectorAll('.slicer-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeCat = btn.dataset.cat;
+  renderTable();
+}
+
+function applyFilters() { renderKPIs(); renderRevChart(); renderCatChart(); renderTable(); }
+
+// ── File import ──────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+}
+function handleFile(e) { if (e.target.files[0]) processFile(e.target.files[0]); }
+
+function processFile(file) {
+  const status = document.getElementById('importStatus');
+  const preview = document.getElementById('dataPreview');
+  status.className = 'import-status';
+  status.style.display = 'none';
+
+  if (file.name.endsWith('.csv')) {
+    Papa.parse(file, {
+      header: true, skipEmptyLines: true,
+      complete(res) {
+        showImportSuccess(file.name, res.data.length, res.meta.fields, res.data);
+      },
+      error() { showImportError('Could not parse CSV file.'); }
+    });
+  } else if (file.name.match(/\.xlsx?$/i)) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws);
+        const fields = data.length ? Object.keys(data[0]) : [];
+        showImportSuccess(file.name, data.length, fields, data);
+      } catch { showImportError('Could not read Excel file.'); }
+    };
+    reader.readAsArrayBuffer(file);
+  } else if (file.name.endsWith('.json')) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        const arr = Array.isArray(data) ? data : [data];
+        showImportSuccess(file.name, arr.length, Object.keys(arr[0]||{}), arr);
+      } catch { showImportError('Invalid JSON file.'); }
+    };
+    reader.readAsText(file);
+  } else {
+    showImportError('Unsupported file type. Please use CSV, XLSX, or JSON.');
+  }
+}
+
+function showImportSuccess(name, rows, fields, data) {
+  const status = document.getElementById('importStatus');
+  status.className = 'import-status success';
+  status.innerHTML = `✅ <strong>${name}</strong> loaded — ${rows} rows · Columns: ${fields.join(', ')}`;
+
+  // Build preview table
+  const preview = document.getElementById('dataPreview');
+  const sample = data.slice(0, 5);
+  preview.style.display = 'block';
+  preview.innerHTML = `
+    <p style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">Preview (first 5 rows)</p>
+    <table>
+      <thead><tr>${fields.map(f=>`<th>${f}</th>`).join('')}</tr></thead>
+      <tbody>${sample.map(r=>`<tr>${fields.map(f=>`<td>${r[f]??''}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>`;
+
+  document.getElementById('dashFooter').innerHTML =
+    `Data imported from <strong>${name}</strong> · ${rows} records · Last updated ${new Date().toLocaleString()}`;
+}
+
+function showImportError(msg) {
+  const status = document.getElementById('importStatus');
+  status.className = 'import-status error';
+  status.innerHTML = '❌ ' + msg;
+  status.style.display = 'block';
+}
+
+// ── Export CSV ───────────────────────────────────────────────
+function exportCSV() {
+  const d = getActiveData();
+  const rows = [['Month','Revenue_2024','Revenue_2023'],...MONTHS.map((m,i)=>[m,d.monthly[i],d.prev[i]])];
+  const csv = rows.map(r=>r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv,' + encodeURIComponent(csv);
+  a.download = 'sales_data.csv';
+  a.click();
+}
+
+// ── Init ─────────────────────────────────────────────────────
+document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+applyFilters();
+</script>
+</body>
+</html>
