@@ -26,3 +26,36 @@ An interactive web-based dashboard to analyze sales and revenue data — built w
 ---
 
 ## 📁 Project Structure
+---
+
+## 🔧 Technologies Used
+
+- **HTML5 / CSS3 / Vanilla JavaScript** — zero build tools
+- **Chart.js 4** — revenue & category charts
+- **PapaParse** — CSV parsing
+- **SheetJS (xlsx)** — Excel file reading
+
+---
+
+## 📚 Learning Outcomes
+
+- ✅ Data visualization with Chart.js
+- ✅ KPI tracking and business metric design
+- ✅ Interactive filters and slicers
+- ✅ File import (CSV / Excel / JSON)
+- ✅ Responsive dashboard layout
+- ✅ Export functionality
+
+---
+
+## 👤 Author
+
+**Name:**NIRUTHIYA SRI G
+**Course / Program:** B.TECH-INFORMATION TECHNOLOGY
+**Submission Date:** JUNE 2026
+
+---
+
+## 📄 License
+
+MIT License — free to use, modify, and distribute.
